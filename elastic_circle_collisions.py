@@ -1,8 +1,10 @@
 # Created 09.09.2019
 import pygame as pg
 import numpy as np
+from numpy.linalg import norm as Abs
 import time
 from random import randint as r
+import math as m
 
 pg.init()
 
@@ -11,7 +13,7 @@ circle_r_min, circle_r_max = 20, 50
 circle_v_min, circle_v_max = 25, 50
 circle_height, circle_density = 30, 0.001
 circle_quantity = 10
-seizure = False
+seizure = True
 
 # Window
 win_width = 1000
@@ -35,9 +37,9 @@ font = pg.font.SysFont("calibri", 25)
 class Circle(object):
     def __init__(self, pos, rad, v):
         # Physical Properties
-        self.pos = pos
+        self.pos = np.array(pos)
         self.r = rad
-        self.v = v
+        self.v = np.array(v)
         self.m = np.pi * rad**2 * circle_height * circle_density
 
         # Logic
@@ -48,10 +50,19 @@ class Circle(object):
 
     def circle_collide(self, circle, circle_v):
         # Physics
-        self.v = ((self.m - circle.m)/(self.m + circle.m)) * self.v + (2 * circle.m / (self.m + circle.m)) * circle_v
-        self.color = (r(10, 255), r(10, 255), r(10, 255)) if seizure else (255, 0, 0)
+        c = circle.pos - self.pos
+        v_c = (c[0]*self.v[0]+c[1]*self.v[1])/(c[0]**2 + c[1]**2) * c # Velocity component in direction of collision
+        v_t = self.v - v_c # Velocity component tangent to direction of collision
+
+        circle_c = self.pos - circle.pos
+        circle_v_c = (circle_c[0]*circle_v[0]+circle_c[1]*circle_v[1])/(circle_c[0]**2 + circle_c[1]**2) * circle_c
+
+        # Calculate new velocity in direction of collision while velocity tangent is preserved:
+        v_c_new = ((self.m - circle.m)/(self.m + circle.m)) * v_c + (2 * circle.m / (self.m + circle.m)) * circle_v_c
+        self.v = v_c_new + v_t
 
         # Logic
+        self.color = (r(10, 255), r(10, 255), r(10, 255)) if seizure else (255, 0, 0)
         self.prev_collision = circle
 
     def wall_collide(self):
@@ -71,7 +82,7 @@ class Circle(object):
     def vortex(self):
         # Physics
         mouse_dir = mouse_pos - self.pos
-        mouse_f = mouse_dir * (mouse_f_abs / np.linalg.norm(mouse_dir))
+        mouse_f = mouse_dir * (mouse_f_abs / Abs(mouse_dir))
         mouse_a = mouse_f / self.m
         self.v = self.v + mouse_a * time_d
         # Logic
@@ -85,14 +96,15 @@ class Circle(object):
         pg.draw.circle(win, self.color, draw_pos, self.r)
 
 def rPos():
-    return np.array([r(1, win_width), r(1, win_height)])
+    return r(1, win_width), r(1, win_height)
 def rRad():
     return r(circle_r_min, circle_r_max)
 def rVel():
-    return np.array([r(circle_v_min, circle_v_max), r(circle_v_min, circle_v_max)])
+    return r(circle_v_min, circle_v_max), r(circle_v_min, circle_v_max)
 
+
+# Setup
 circles = [Circle(rPos(), rRad(), rVel()) for i in range(circle_quantity)]
-
 # Main
 run = True
 while run:
@@ -113,10 +125,8 @@ while run:
                 mouse_f_abs = -mouse_f_abs
             elif event.button == 4:
                 mouse_f_abs += 10000
-                print(mouse_f_abs)
             elif event.button == 5:
                 mouse_f_abs = round(mouse_f_abs - 10000)
-                print(mouse_f_abs)
 
         # Window
         elif event.type == pg.VIDEORESIZE:
@@ -134,14 +144,15 @@ while run:
     # Action
     for i, circle_1 in enumerate(circles[:-1]):
         for circle_2 in circles[i+1:]:
-            if np.linalg.norm(circle_2.pos - circle_1.pos) <= circle_1.r + circle_2.r:
+            if Abs(circle_2.pos - circle_1.pos) <= circle_1.r + circle_2.r:
                 if circle_1.prev_collision != circle_2 or circle_2.prev_collision != circle_1:
                     circle_v_1 = circle_1.v
                     circle_1.circle_collide(circle_2, circle_2.v)
                     circle_2.circle_collide(circle_1, circle_v_1)
 
-                circle_dist = (circle_2.pos - circle_1.pos) * (circle_1.r + circle_2.r) / np.linalg.norm(circle_2.pos - circle_1.pos)
-                circle_1.pos = circle_1.pos - (circle_dist - (circle_2.pos - circle_1.pos))
+                circle_dist = (circle_2.pos - circle_1.pos) * (circle_1.r + circle_2.r) / Abs(circle_2.pos - circle_1.pos)
+                circle_1.pos = circle_1.pos - (circle_dist - (circle_2.pos - circle_1.pos))/2
+                circle_2.pos = circle_2.pos + (circle_dist - (circle_2.pos - circle_1.pos))/2
 
     for circle in circles:
         circle.wall_collide()
@@ -163,7 +174,6 @@ while run:
     win.blit(info_text, (0, win_height - font.size("a")[1] * 2))
     info_text = font.render("R: Restart", False, (255, 255, 255))
     win.blit(info_text, (0, win_height - font.size("a")[1]))
-    #win_height - info_text.get_rect()[1])
 
     for circle in circles:
         circle.draw()
