@@ -4,7 +4,7 @@ import numpy as np
 from numpy.linalg import norm as Abs
 import time
 from random import randint as r
-import math as m
+from scipy.constants import g
 
 pg.init()
 
@@ -13,11 +13,11 @@ circle_r_min, circle_r_max = 20, 50
 circle_v_min, circle_v_max = 25, 50
 circle_height, circle_density = 30, 0.001
 circle_quantity = 10
-seizure = True
+seizure = False
 
 # Window
-win_width = 1000
-win_height = 1000
+win_width = 750
+win_height = 750
 win_width_min = 200
 win_height_min = 200
 win = pg.display.set_mode([win_width, win_height], pg.RESIZABLE)
@@ -30,8 +30,13 @@ time_d = time.time() - time_0
 mouse_pos = np.array(pg.mouse.get_pos())
 mouse_f_abs = 100000
 
+# Gravity
+g_toggle = False
+g_amp = 300
+
 # Aesthetic
-font = pg.font.SysFont("calibri", 25)
+font = pg.font.SysFont('trebuchetms', 25)
+
 
 # Circle
 class Circle(object):
@@ -67,14 +72,14 @@ class Circle(object):
 
     def wall_collide(self):
         # Physics
-        if 0 > self.pos[0] or self.pos[0] > win_width:
-            self.pos[0] = 0 if 0 > self.pos[0] else win_width
+        if 0 + self.r > self.pos[0] or self.pos[0] > win_width - self.r:
+            self.pos[0] = 0 + self.r if 0 + self.r > self.pos[0] else win_width - self.r
             self.v[0] = -self.v[0]
             # Logic
             self.prev_collision = None
 
-        if 0 > self.pos[1] or self.pos[1] > win_height:
-            self.pos[1] = 0 if 0 > self.pos[1] else win_height
+        if 0 + self.r > self.pos[1] or self.pos[1] > win_height - self.r:
+            self.pos[1] = 0 + + self.r if 0 + self.r > self.pos[1] else win_height - self.r
             self.v[1] = -self.v[1]
             # Logic
             self.prev_collision = None
@@ -87,6 +92,9 @@ class Circle(object):
         self.v = self.v + mouse_a * time_d
         # Logic
         self.prev_collision = None
+    
+    def gravity(self):
+        self.v = self.v + np.array([0, g_amp * g]) * time_d
 
     def move(self):
         self.pos = self.pos + self.v * time_d
@@ -105,6 +113,7 @@ def rVel():
 
 # Setup
 circles = [Circle(rPos(), rRad(), rVel()) for i in range(circle_quantity)]
+
 # Main
 run = True
 while run:
@@ -119,6 +128,16 @@ while run:
                 circle_quantity += 1
             elif event.key == pg.K_DOWN:
                 circle_quantity -= 1
+            
+            elif event.key == pg.K_g:
+                g_toggle = not g_toggle
+            elif event.key == pg.K_t:
+                g_amp += 10
+            elif event.key == pg.K_b:
+                g_amp -= 10
+                
+            elif event.key == pg.K_c:
+                seizure = not seizure
         # Mouse
         elif event.type == pg.MOUSEBUTTONDOWN:
             if event.button == 2:
@@ -144,18 +163,21 @@ while run:
     # Action
     for i, circle_1 in enumerate(circles[:-1]):
         for circle_2 in circles[i+1:]:
-            if Abs(circle_2.pos - circle_1.pos) <= circle_1.r + circle_2.r:
+            circle_dist = circle_2.pos - circle_1.pos
+            if Abs(circle_dist) <= circle_1.r + circle_2.r:
                 if circle_1.prev_collision != circle_2 or circle_2.prev_collision != circle_1:
                     circle_v_1 = circle_1.v
                     circle_1.circle_collide(circle_2, circle_2.v)
                     circle_2.circle_collide(circle_1, circle_v_1)
 
-                circle_dist = (circle_2.pos - circle_1.pos) * (circle_1.r + circle_2.r) / Abs(circle_2.pos - circle_1.pos)
-                circle_1.pos = circle_1.pos - (circle_dist - (circle_2.pos - circle_1.pos))/2
-                circle_2.pos = circle_2.pos + (circle_dist - (circle_2.pos - circle_1.pos))/2
+                circle_dist_new = circle_dist * (circle_1.r + circle_2.r) / Abs(circle_dist)
+                circle_1.pos = circle_1.pos - (circle_dist_new - circle_dist)/2
+                circle_2.pos = circle_2.pos + (circle_dist_new - circle_dist)/2
 
     for circle in circles:
         circle.wall_collide()
+        if g_toggle:
+            circle.gravity()
 
     if pg.mouse.get_pressed()[0]:
         mouse_pos = np.array(pg.mouse.get_pos())
@@ -167,16 +189,30 @@ while run:
 
     # Drawing
     win.fill((0, 0, 0))
-
-    mouse_text = font.render("mouse_force: " + str(mouse_f_abs / 1000) + " kN", False, (255, 255, 255))
-    win.blit(mouse_text, (0, 0))
-    info_text = font.render("A_UP and A_DOWN: Change number of circles: " + str(circle_quantity), False, (255, 255, 255))
-    win.blit(info_text, (0, win_height - font.size("a")[1] * 2))
-    info_text = font.render("R: Restart", False, (255, 255, 255))
-    win.blit(info_text, (0, win_height - font.size("a")[1]))
-
+    
     for circle in circles:
         circle.draw()
+
+    # Info
+    mouse_text = font.render("Mouse Vortex: " + str(mouse_f_abs / 1000) + " kN", False, (255, 255, 255))
+    win.blit(mouse_text, (0, 0))
+
+    circle_text = font.render(
+        "A_UP and A_DOWN: Change number of circles: " + str(circle_quantity),
+        False, (255, 255, 255))
+    win.blit(circle_text, (0, win_height - font.size("a")[1] * 4))
+
+    gravity_text = font.render(
+        "G: Toggle Gravity: " + ("On" if g_toggle else "Off") + " | T and B: Amplify G: " + str(g_amp),
+        False, (255, 255, 255))
+    win.blit(gravity_text, (0, win_height - font.size("a")[1] * 3))
+
+    color_text = font.render("C: Toggle Color Change: " + ("On" if seizure else "Off"), False, (255, 255, 255))
+    win.blit(color_text, (0, win_height - font.size("a")[1] * 2))
+
+    restart_text = font.render("R: Restart", False, (255, 255, 255))
+    win.blit(restart_text, (0, win_height - font.size("a")[1]))
+
     pg.display.update()
 
 pg.quit()
