@@ -11,9 +11,9 @@ pg.init()
 
 # Circle Properties
 circle_r_min, circle_r_max = 0.025, 0.06  # m, m
-circle_v_min, circle_v_max = 0.01, 0.5  # m/s, m/s
-circle_height, circle_density = 0.5, 0.3  # m, kg/m^3
-px_per_m = 750  # Meter per pixel
+circle_v_min, circle_v_max = 0.01, 0.2  # m/s, m/s
+circle_height, circle_density = 0.5, 480  # m, kg/m^3
+px_per_m = 750  # Pixel per meter
 circle_quantity = 10
 seizure = False
 
@@ -35,7 +35,7 @@ mouse_f_abs = 1
 
 # Gravity
 g_toggle = False
-g_amp = 300
+g_amp = 1
 
 # Aesthetic
 hud = True
@@ -77,13 +77,13 @@ class Circle(object):
     def wall_collide(self):
         # Physics
         if self.r > self.pos[0] or self.pos[0] > win_width - self.r:
-            self.pos[0] = 0 + self.r if 0 + self.r > self.pos[0] else win_width - self.r
+            self.pos[0] = self.r if self.r > self.pos[0] else win_width - self.r
             self.v[0] = -self.v[0]
             # Logic
             self.prev_collision = None
 
         if self.r > self.pos[1] or self.pos[1] > win_height - self.r:
-            self.pos[1] = 0 + + self.r if 0 + self.r > self.pos[1] else win_height - self.r
+            self.pos[1] = self.r if self.r > self.pos[1] else win_height - self.r
             self.v[1] = -self.v[1]
             # Logic
             self.prev_collision = None
@@ -91,14 +91,14 @@ class Circle(object):
     def vortex(self):
         # Physics
         mouse_dir = mouse_pos - self.pos
-        mouse_f = mouse_dir * (mouse_f_abs / Abs(mouse_dir))
+        mouse_f = mouse_dir * (mouse_f_abs / Abs(mouse_dir)) * px_per_m
         mouse_a = mouse_f / self.m
         self.v = self.v + mouse_a * time_d
         # Logic
         self.prev_collision = None
     
     def gravity(self):
-        self.v = self.v + np.array([0, g_amp * g]) * time_d
+        self.v = self.v + np.array([0, g_amp * g]) * time_d * px_per_m
 
     def move(self):
         self.pos = self.pos + self.v * time_d
@@ -117,7 +117,6 @@ def rVel():
 
 # Setup
 circles = [Circle(rPos(), rRad(), rVel()) for i in range(circle_quantity)]
-# circles = [Circle((120, 50), 10, (0, 0)), Circle((190, 39), 10, (-20, 0)), Circle((190, 61), 10, (-20, 0))]
 clock = pg.time.Clock()
 u = 0  # Fps updater
 # Main
@@ -139,9 +138,9 @@ while run:
             elif event.key == pg.K_g:
                 g_toggle = not g_toggle
             elif event.key == pg.K_t:
-                g_amp += 10
+                g_amp = round(g_amp + 0.1, 1)
             elif event.key == pg.K_b:
-                g_amp -= 10
+                g_amp = round(g_amp - 0.1, 1)
             # Aesthetic
             elif event.key == pg.K_c:
                 seizure = not seizure
