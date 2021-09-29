@@ -16,6 +16,7 @@ circle_height, circle_density = 0.5, 480  # m, kg/m^3
 px_per_m = 750  # Pixel per meter
 circle_quantity = 10
 seizure = False
+tracking = False
 
 # Window
 win_width, win_height = 750, 750
@@ -41,6 +42,19 @@ g_amp = 1
 hud = True
 font = pg.font.SysFont('trebuchetms', 25)
 
+# Tracker
+class Tracker(object):
+    def __init__(self, pos, color):
+        self.pos = list(pos)
+        self.color = color
+        self.time_kill = time.time() + 3
+
+    def update(self):
+        if time_new < self.time_kill:
+            color = self.color if seizure else (255, 0, 0)
+            win.set_at(self.pos, color)
+        else:
+            trackers.remove(self)
 
 # Circle
 class Circle(object):
@@ -102,6 +116,9 @@ class Circle(object):
 
     def move(self):
         self.pos = self.pos + self.v * time_d
+        if tracking:
+            if list(np.around(self.pos).astype(int)) not in [e.pos for e in trackers]:
+                trackers.append(Tracker(np.around(self.pos).astype(int), self.color))
 
     def draw(self):
         draw_pos = np.around(self.pos).astype(int)
@@ -118,7 +135,23 @@ def rVel():
 # Setup
 circles = [Circle(rPos(), rRad(), rVel()) for i in range(circle_quantity)]
 clock = pg.time.Clock()
+trackers = []
 u = 0  # Fps updater
+mouse_text = font.render("Mouse Vortex: " + str(mouse_f_abs) + " N", False, (255, 255, 255))
+circle_text = font.render(
+    "A_UP and A_DOWN: Change number of circles: " + str(circle_quantity),
+    False, (255, 255, 255))
+gravity_text = font.render(
+                    "G: Toggle Gravity: " + ("On" if g_toggle else "Off") + " | T and B: Amplify G: " + str(g_amp),
+                    False, (255, 255, 255))
+color_text = font.render("C: Toggle Color Change: " + ("On" if seizure else "Off"), False,
+                                         (255, 255, 255))
+tracking_text = font.render("I: Circle Tracking: " + ("On" if tracking else "Off"), False,
+                                            (255, 255, 255))
+restart_text = font.render("R: Restart", False, (255, 255, 255))
+full_text = font.render("F11: Toggle Fullscren: " + ("On" if full else "Off"), False, (255, 255, 255))
+hud_text = font.render("H: Toggle HUD", False, (255, 255, 255))
+
 # Main
 run = True
 while run:
@@ -132,20 +165,45 @@ while run:
                 circles = [Circle(rPos(), rRad(), rVel()) for i in range(circle_quantity)]
             elif event.key == pg.K_UP:
                 circle_quantity += 1
+                circle_text = font.render(
+                    "A_UP and A_DOWN: Change number of circles: " + str(circle_quantity),
+                    False, (255, 255, 255))
             elif event.key == pg.K_DOWN:
                 circle_quantity -= 1
+                circle_text = font.render(
+                    "A_UP and A_DOWN: Change number of circles: " + str(circle_quantity),
+                    False, (255, 255, 255))
             # Gravity
             elif event.key == pg.K_g:
                 g_toggle = not g_toggle
+                gravity_text = font.render(
+                    "G: Toggle Gravity: " + ("On" if g_toggle else "Off") + " | T and B: Amplify G: " + str(g_amp),
+                    False, (255, 255, 255))
             elif event.key == pg.K_t:
                 g_amp = round(g_amp + 0.1, 1)
+                gravity_text = font.render(
+                    "G: Toggle Gravity: " + ("On" if g_toggle else "Off") + " | T and B: Amplify G: " + str(g_amp),
+                    False, (255, 255, 255))
             elif event.key == pg.K_b:
                 g_amp = round(g_amp - 0.1, 1)
+                gravity_text = font.render(
+                    "G: Toggle Gravity: " + ("On" if g_toggle else "Off") + " | T and B: Amplify G: " + str(g_amp),
+                    False, (255, 255, 255))
             # Aesthetic
             elif event.key == pg.K_c:
                 seizure = not seizure
+                color_text = font.render("C: Toggle Color Change: " + ("On" if seizure else "Off"), False,
+                                         (255, 255, 255))
+            elif event.key == pg.K_i:
+                tracking = not tracking
+                if not tracking:
+                    trackers = []
+                tracking_text = font.render("I: Circle Tracking: " + ("On" if tracking else "Off"), False,
+                                            (255, 255, 255))
             elif event.key == pg.K_h:
                 hud = not hud
+                hud_text = font.render("H: Toggle HUD", False, (255, 255, 255))
+
             elif event.key == pg.K_F11:
                 full = not full
                 if full:
@@ -155,6 +213,7 @@ while run:
                 else:
                     win_width, win_height = win_width_temp, win_height_temp
                     pg.display.set_mode([win_width, win_height], pg.RESIZABLE)
+                full_text = font.render("F11: Toggle Fullscren: " + ("On" if full else "Off"), False, (255, 255, 255))
         # Mouse
         elif event.type == pg.MOUSEBUTTONDOWN:
             if event.button == 2:
@@ -163,6 +222,7 @@ while run:
                 mouse_f_abs = round(mouse_f_abs + 0.1, 1)
             elif event.button == 5:
                 mouse_f_abs = round(mouse_f_abs - 0.1, 1)
+            mouse_text = font.render("Mouse Vortex: " + str(mouse_f_abs) + " N", False, (255, 255, 255))
 
         # Window
         elif event.type == pg.VIDEORESIZE and not full:
@@ -207,7 +267,11 @@ while run:
 
     # Drawing
     win.fill((0, 0, 0))
-    
+
+    time_new = time.time()
+    for tracker in trackers:
+        tracker.update()
+
     for circle in circles:
         circle.draw()
 
@@ -218,29 +282,13 @@ while run:
             u += 1
         win.blit(fps_text, (win_width - fps_text.get_rect()[2], 0))
 
-        mouse_text = font.render("Mouse Vortex: " + str(mouse_f_abs) + " N", False, (255, 255, 255))
         win.blit(mouse_text, (0, 0))
 
-        circle_text = font.render(
-            "A_UP and A_DOWN: Change number of circles: " + str(circle_quantity),
-            False, (255, 255, 255))
-        win.blit(circle_text, (0, win_height - font.size("a")[1] * 4))
+        for i, text in enumerate([restart_text, tracking_text, color_text, gravity_text, circle_text], 1):
+            win.blit(text, (0, win_height - font.size("a")[1] * i))
 
-        gravity_text = font.render(
-            "G: Toggle Gravity: " + ("On" if g_toggle else "Off") + " | T and B: Amplify G: " + str(g_amp),
-            False, (255, 255, 255))
-        win.blit(gravity_text, (0, win_height - font.size("a")[1] * 3))
-
-        color_text = font.render("C: Toggle Color Change: " + ("On" if seizure else "Off"), False, (255, 255, 255))
-        win.blit(color_text, (0, win_height - font.size("a")[1] * 2))
-
-        restart_text = font.render("R: Restart", False, (255, 255, 255))
-        win.blit(restart_text, (0, win_height - font.size("a")[1]))
-
-        full_text = font.render("F11: Toggle Fullscren: " + ("On" if full else "Off"), False, (255, 255, 255))
         win.blit(full_text, (win_width - full_text.get_rect()[2], win_height - font.size("a")[1] * 2))
 
-        hud_text = font.render("H: Toggle HUD", False, (255, 255, 255))
         win.blit(hud_text, (win_width - full_text.get_rect()[2], win_height - font.size("a")[1]))
 
     pg.display.update()
